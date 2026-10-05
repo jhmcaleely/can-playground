@@ -1,0 +1,44 @@
+:SB040N9103EC0008
+
+: start of packet
+
+S standard packet (or X for extended)
+
+b040 - ASCII hex of standard frame
+
+b0 SIDH (high)
+40 SIDL (low)
+
+CAN(CBUS)
+11 bits(4 Prio, 7 ID)
+1011 0000 000
+
+1011 0000 010 0 0000
+
+B 0 4 0
+
+Prio b
+CAN ID 2
+
+N Normal (or R RTR frame)
+
+91 03EC 0008 upto 8 data bytes (5)
+
+91 ACOF
+03  
+ec 0x03ec 1004
+
+00 0x0008    8
+08
+
+
+missing
+
+; terminator
+
+
+b0416440fb00021deddf800000000000000000000000
+
+b    0    4    16440fb00021deddf800000000000000000000000
+
+1011 0000 0040

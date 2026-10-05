@@ -1,0 +1,47 @@
+Packet after unstuffing:
+b0416440fb00021deddf800000000000000000000000
+b0416400fb00022e19df000000000000000000000000
+
+Packet after unstuffing:
+b04164404000020a84df000000000000000000000000
+
+Decoded CAN arbitration: 0xb04
+Decoded CAN identifier: 0x582
+Decoded CAN RTR: 0
+Decoded CAN Control DLC: 5
+Received checksum: 1509
+Computed checksum: 1509
+CAN Data field: 91 01 00 00 08 
+Decoded CBUS CAN: MjPrj: 0x2 MinPrj: 0x3 ID: 0x02 (2)
+Decoded CBUS length: 4
+Decoded CBUS operation: OP 0x91, Node: 256, Event: 8
+Number sent: 0
+Number received: 1
+Number rejected: 0
+
+b04164004000023970df000000000000000000000000
+
+Decoded CAN arbitration: 0xb04
+Decoded CAN identifier: 0x582
+Decoded CAN RTR: 0
+Decoded CAN Control DLC: 5
+Received checksum: 72e1
+Computed checksum: 72e1
+CAN Data field: 90 01 00 00 08 
+Decoded CBUS CAN: MjPrj: 0x2 MinPrj: 0x3 ID: 0x02 (2)
+Decoded CBUS length: 4
+Decoded CBUS operation: OP 0x90, Node: 256, Event: 8
+Number sent: 0
+Number received: 2
+Number rejected: 0
+
+Number sent: 0
+Number received: 2
+Number rejected: 0
+
+
+SOP 0
+111 1111 1111
+1
+11
+dddd
