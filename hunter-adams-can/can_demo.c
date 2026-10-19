@@ -168,7 +168,7 @@ int main() {
     gpio_put(LED_PIN, 0) ;
 
     // start core 1 threads
-    multicore_reset_core1();
+ //   multicore_reset_core1();
     multicore_launch_core1(&core1_main);
 
     // Setup the CAN receiver on core 0
