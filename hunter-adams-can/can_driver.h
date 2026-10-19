@@ -300,13 +300,8 @@ void sendCBUSPacket() {
     put_bits(tx_stuffed, stuffed_bits, 0x7f, 7);
     stuffed_bits += 7;
 
-    print_bits(tx_stuffed, stuffed_bits, "stuffed frame");
-    printf("TX: Stuffed frame length: %zu bits\n", stuffed_bits);
-    size_t stuffed_bytes = (stuffed_bits + 7) / 8;
-    printf("TX: Stuffed frame length: %zu bytes\n", stuffed_bytes);
+    // copy into the pio's word sized buffer
     size_t stuffed_words = (stuffed_bits + 15) / 16;
-    printf("TX: Stuffed frame length: %zu words\n", stuffed_words);
-
     for (int i = 0; i < stuffed_words; i++) {
         tx_packet_stuffed[i] = (tx_stuffed[i*2] << 8) | tx_stuffed[i*2 + 1];
     }
