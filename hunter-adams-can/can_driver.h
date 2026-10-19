@@ -385,15 +385,10 @@ bool decode_can_packet(const unsigned char* rx_packet_stuffed, unsigned char* rx
 
     unsigned char can_data_field[8];
     uint8_t can_data_len = dlc;
-    if (decoded_packet) {
-        decoded_packet->data_len = can_data_len;
-    }
     for (size_t i = 0; i < can_data_len; i++) {
         can_data_field[i] = get_bits(rx_packet_unstuffed, 18 + i*8, 8);
         printf("RX: CAN Data byte %d: 0x%02x\n", i, can_data_field[i]);
-        if (decoded_packet) {
-            decoded_packet->data_field[i] = can_data_field[i];
-        }
+
     }
 
     uint16_t can_crc = get_bits(rx_packet_unstuffed, 18 + can_data_len*8, 15);
