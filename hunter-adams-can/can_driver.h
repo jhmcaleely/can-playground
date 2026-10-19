@@ -58,6 +58,14 @@ int dma_chan_4  = 4 ;
 unsigned int dummy_source = 0 ;
 unsigned int dummy_dest   = 0 ;
 
+struct can_data_frame {
+    uint16_t id;
+    unsigned char data_field[8];
+    uint8_t data_len;
+};
+
+bool decode_can_packet(const unsigned char* rx_packet_stuffed, unsigned char* rx_packet_unstuffed, struct can_data_frame* decoded_packet);
+
 
 //                 FUNCTIONS USED FOR PACKET TRANSMISSION
 //
@@ -208,7 +216,7 @@ size_t stuff_frame(unsigned char* stuffed, unsigned char* unstuffed, size_t unst
             // Insert a stuffed bit
             put_bit(stuffed, transmit_bits, !next_bit);
             transmit_bits++;
-            bit_run = 1;
+            bit_run = 0;
         }
         prev_bit = next_bit;
     }
@@ -219,6 +227,8 @@ size_t stuff_frame(unsigned char* stuffed, unsigned char* unstuffed, size_t unst
 // arbitration, reserve byte, payload length, and the payload. This function
 // automatically computes and appends the checksum, then appends the EOF.
 void sendCBUSPacket() {
+
+    unsigned char tx_decode_buffer[MAX_STUFFED_PACKET_LEN];
 
     unsigned char tx_buffer_byte[100];
     memset(tx_buffer_byte, 0, sizeof(tx_buffer_byte));
@@ -241,11 +251,11 @@ void sendCBUSPacket() {
     tx_cursor++;
 
     // control r1
-    put_bit(tx_buffer_byte, tx_cursor, can_recessive_bit);
+    put_bit(tx_buffer_byte, tx_cursor, can_dominant_bit);
     tx_cursor++;
 
     // control r0
-    put_bit(tx_buffer_byte, tx_cursor, can_recessive_bit);
+    put_bit(tx_buffer_byte, tx_cursor, can_dominant_bit);
     tx_cursor++;
 
     const unsigned char can_dlc = 5;
@@ -293,7 +303,7 @@ void sendCBUSPacket() {
 
     print_bits(tx_stuffed, stuffed_bits, "stuffed frame");
 
-    //decode_frame(tx_stuffed, stuffed_bits);
+    decode_can_packet(tx_stuffed, tx_decode_buffer, NULL);
 
     // BEGIN TRANSMISSION
     dma_start_channel_mask((1u << dma_chan_0)) ;
@@ -328,11 +338,6 @@ uint16_t can_crc15_next(uint16_t crc, uint8_t data, int len) {
     return crc;
 }
 
-struct can_data_frame {
-    uint16_t id;
-    unsigned char data_field[8];
-    uint8_t data_len;
-};
 
 void decode_merg_can_packet(const struct can_data_frame* packet) {
     
