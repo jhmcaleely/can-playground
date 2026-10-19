@@ -22,7 +22,7 @@
 //          OTHER BUFFERS FOR STORING STUFFED/UNSTUFFED PACKETS FOR TX/RX
 //
 // Assembled packet for transmission (unstuffed then stuffed)
-unsigned short tx_packet_unstuffed[MAX_PACKET_LEN>>1] = {0} ;
+//unsigned short tx_packet_unstuffed[MAX_PACKET_LEN>>1] = {0} ;
 unsigned short tx_packet_stuffed[MAX_STUFFED_PACKET_LEN>>1] = {0} ;
 unsigned short * tx_packet_stuffed_pointer = &tx_packet_stuffed[0] ;
 
@@ -281,6 +281,7 @@ void sendCBUSPacket() {
     tx_cursor += 15;
 
     unsigned char tx_stuffed[MAX_STUFFED_PACKET_LEN];
+    memset(tx_stuffed, 0, sizeof(tx_stuffed));
     size_t stuffed_bits = stuff_frame(tx_stuffed, tx_buffer_byte, tx_cursor);
 
 
@@ -299,11 +300,16 @@ void sendCBUSPacket() {
     put_bits(tx_stuffed, stuffed_bits, 0x7f, 7);
     stuffed_bits += 7;
 
-
-
     print_bits(tx_stuffed, stuffed_bits, "stuffed frame");
+    printf("TX: Stuffed frame length: %zu bits\n", stuffed_bits);
+    size_t stuffed_bytes = (stuffed_bits + 7) / 8;
+    printf("TX: Stuffed frame length: %zu bytes\n", stuffed_bytes);
+    size_t stuffed_words = (stuffed_bits + 15) / 16;
+    printf("TX: Stuffed frame length: %zu words\n", stuffed_words);
 
-    decode_can_packet(tx_stuffed, tx_decode_buffer, NULL);
+    for (int i = 0; i < stuffed_words; i++) {
+        tx_packet_stuffed[i] = (tx_stuffed[i*2] << 8) | tx_stuffed[i*2 + 1];
+    }
 
     // BEGIN TRANSMISSION
     dma_start_channel_mask((1u << dma_chan_0)) ;

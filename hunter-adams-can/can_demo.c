@@ -78,7 +78,7 @@ static PT_THREAD (protothread_send(struct pt *pt))
     // Brief delay before starting up
     sleep_ms(2000) ;
 
-    cbus_payload[0] = 0x90;
+    cbus_payload[0] = 0x91;
     cbus_payload[1] = 0x01;
     cbus_payload[2] = 0x00;
     cbus_payload[3] = 0x00;
@@ -95,7 +95,7 @@ static PT_THREAD (protothread_send(struct pt *pt))
             sendCBUSPacket() ;
             // Decrement the remaining number of packets to send ;
             number_to_send -= 1 ;
-            cbus_payload[0] = number_to_send & 1 ? 0x90 : 0x91;
+            cbus_payload[0] = number_to_send & 1 ? 0x91 : 0x90;
             cbus_payload[1] = 0x01;
             cbus_payload[2] = 0x00;
             cbus_payload[3] = 0x00;
