@@ -328,18 +328,18 @@ uint16_t can_crc15_next(uint16_t crc, uint8_t data, int len) {
     return crc;
 }
 
-struct can_packet {
-    uint16_t arbitration;
+struct can_data_frame {
+    uint16_t id;
     unsigned char data_field[8];
     uint8_t data_len;
 };
 
-void decode_merg_can_packet(const struct can_packet* packet) {
+void decode_merg_can_packet(const struct can_data_frame* packet) {
     
     // MERG CAN ID for CBUS
-    uint8_t cbus_MjPri = (packet->arbitration & 0xC00) >> 10; 
-    uint8_t cbus_MinPri = (packet->arbitration & 0x300) >> 8;
-    uint8_t cbus_id = (packet->arbitration & 0xFE) >> 1;
+    uint8_t cbus_MjPri = (packet->id & 0x600) >> 9; 
+    uint8_t cbus_MinPri = (packet->id & 0x180) >> 7;
+    uint8_t cbus_id = (packet->id & 0x7f);
     printf("RX: Decoded CBUS CAN: MjPrj: 0x%01X MinPrj: 0x%01X ID: 0x%02X (%d)\n", cbus_MjPri, cbus_MinPri, cbus_id, cbus_id);
 
     uint8_t cbus_len = (packet->data_field[0] & 0xe0) >> 5;
@@ -355,7 +355,7 @@ void decode_merg_can_packet(const struct can_packet* packet) {
     printf("RX: Decoded CBUS operation: OP 0x%02x, Node: %d, Event: %d\n", cbus_op, cbus_node, cbus_event);
 }
 
-bool decode_can_packet(const unsigned char* rx_packet_stuffed, unsigned char* rx_packet_unstuffed, struct can_packet* decoded_packet) {
+bool decode_can_packet(const unsigned char* rx_packet_stuffed, unsigned char* rx_packet_unstuffed, struct can_data_frame* decoded_packet) {
     
     // Print packet received stuffed packet
     print_bits(rx_packet_stuffed, 22*8, "RX: Stuffed packet: ");
@@ -367,9 +367,6 @@ bool decode_can_packet(const unsigned char* rx_packet_stuffed, unsigned char* rx
 
     uint16_t can_arbitration = get_bits(rx_packet_unstuffed, 0, 12);
     printf("RX: Decoded CAN arbitration: 0x%03x\n", can_arbitration);
-    if (decoded_packet) {
-        decoded_packet->arbitration = can_arbitration;
-    }
 
     uint16_t can_identifier = get_bits(rx_packet_unstuffed, 0, 11);
     uint8_t can_rtr = get_bits(rx_packet_unstuffed, 11, 1);
@@ -437,6 +434,15 @@ bool decode_can_packet(const unsigned char* rx_packet_stuffed, unsigned char* rx
         return false;
     }
 
+    if (decoded_packet) {
+        decoded_packet->id = can_identifier; 
+        for (size_t i = 0; i < can_data_len; i++) {
+            decoded_packet->data_field[i] = can_data_field[i];
+        }
+        decoded_packet->data_len = can_data_len;
+    }
+    
+
     return true;
 }
 
@@ -463,7 +469,7 @@ unsigned char attemptPacketReceive() {
     // Print packet received stuffed packet
     print_bits(rx_packet_stuffed, 22*8, "RX: Stuffed packet: ");
 
-    struct can_packet decoded_packet;
+    struct can_data_frame decoded_packet;
 
     if (decode_can_packet(rx_packet_stuffed, rx_packet_unstuffed, &decoded_packet)) {
         decode_merg_can_packet(&decoded_packet);
