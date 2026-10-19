@@ -61,166 +61,20 @@ unsigned int dummy_dest   = 0 ;
 
 //                 FUNCTIONS USED FOR PACKET TRANSMISSION
 //
-// Helper function which access a particular bit in an unsigned short.
-// It returns that bit (0 or 1) as an unsigned short.
-unsigned short getBitShort(unsigned short * shorty, unsigned char bitnum) {
-    switch(bitnum) {
-        case 0:
-            return ((*shorty & 0x8000) >> 15) ;
-        case 1:
-            return ((*shorty & 0x4000) >> 14) ;
-        case 2:
-            return ((*shorty & 0x2000) >> 13) ;
-        case 3:
-            return ((*shorty & 0x1000) >> 12) ;
-        case 4:
-            return ((*shorty & 0x0800) >> 11) ;
-        case 5:
-            return ((*shorty & 0x0400) >> 10) ;
-        case 6:
-            return ((*shorty & 0x0200) >> 9) ;
-        case 7:
-            return ((*shorty & 0x0100) >> 8) ;
-        case 8:
-            return ((*shorty & 0x0080) >> 7) ;
-        case 9:
-            return ((*shorty & 0x0040) >> 6) ;
-        case 10:
-            return ((*shorty & 0x0020) >> 5) ;
-        case 11:
-            return ((*shorty & 0x0010) >> 4) ;
-        case 12:
-            return ((*shorty & 0x0008) >> 3) ;
-        case 13:
-            return ((*shorty & 0x0004) >> 2) ;
-        case 14:
-            return ((*shorty & 0x0002) >> 1) ;
-        case 15:
-            return ((*shorty & 0x0001) >> 0) ;
-        default:
-            return 0xFFFF ;
-    }
-}
-// Helper function which modifies a single bit in an unsigned short. The first argument
-// is a pointer to the short that will be modified. The second is the bit number (0-15) to
-// modify. And the third is the value (0 or 1) to which we would like it modified.
-void modifyBitShort(unsigned short * shorty, unsigned char bitnum, unsigned short value) {
-    switch(bitnum) {
-        case 15:
-            *shorty |= ((value << 0) & 0x0001) ;
-            break ;
-        case 14:
-            *shorty |= ((value << 1) & 0x0002) ;
-            break ;
-        case 13:
-            *shorty |= ((value << 2) & 0x0004) ;
-            break ;
-        case 12:
-            *shorty |= ((value << 3) & 0x0008) ;
-            break ;
-        case 11:
-            *shorty |= ((value << 4) & 0x0010) ;
-            break ;
-        case 10:
-            *shorty |= ((value << 5) & 0x0020) ;
-            break ;
-        case 9:
-            *shorty |= ((value << 6) & 0x0040) ;
-            break ;
-        case 8:
-            *shorty |= ((value << 7) & 0x0080) ;
-            break ;
-        case 7:
-            *shorty |= ((value << 8) & 0x0100) ;
-            break ;
-        case 6:
-            *shorty |= ((value << 9) & 0x0200) ;
-            break ;
-        case 5:
-            *shorty |= ((value << 10) & 0x0400) ;
-            break ;
-        case 4:
-            *shorty |= ((value << 11) & 0x0800) ;
-            break ;
-        case 3:
-            *shorty |= ((value << 12) & 0x1000) ;
-            break ;
-        case 2:
-            *shorty |= ((value << 13) & 0x2000) ;
-            break ;
-        case 1:
-            *shorty |= ((value << 14) & 0x4000) ;
-            break ;
-        case 0:
-            *shorty |= ((value << 15) & 0x8000) ;
-            break ;
-        default:
-            printf("Invalid argument to modifyBitChar   \n") ;
-            break ;
-    }
-}
-// Assumes that the final element in the unstuffed buffer is 0xFFFF
-void bitStuff(unsigned short * unstuffed, unsigned short * stuffed) {
-    // Clear the buffer
-    memcpy(&stuffed[0], &zero_packet[0], MAX_STUFFED_PACKET_LEN) ;
-
-    // Variables for monitoring position in each buffer
-    int stuffed_index   = 0 ;
-    int unstuffed_index = 0 ;
-    int stuffed_bit     = 0 ;
-    int unstuffed_bit   = 0 ;
-
-    // Accumulated bit run length
-    int bit_run_len = 1 ;
-
-    // Memory of old bit value
-    unsigned short new_val = 0 ;
-    unsigned short old_val = 2 ;
-
-    // Until we find the end of frame . . .
-    while ((*(unstuffed + unstuffed_index) != 0xFFFF) && (unstuffed_index < MAX_PACKET_LEN)) {
-        new_val = getBitShort((unstuffed + unstuffed_index), unstuffed_bit) ;
-        bit_run_len = (new_val==old_val)?(bit_run_len+1):1 ;
-        old_val = new_val ;
-
-        if (bit_run_len < 5) {
-            modifyBitShort(stuffed+stuffed_index, stuffed_bit, new_val) ;
-            stuffed_bit = (stuffed_bit<15)?(stuffed_bit+1):0 ;
-            stuffed_index = (stuffed_bit==0)?(stuffed_index+1):stuffed_index ;
-            unstuffed_bit = (unstuffed_bit<15)?(unstuffed_bit+1):0 ;
-            unstuffed_index = (unstuffed_bit==0)?(unstuffed_index+1):unstuffed_index ;
-
-        }
-        else {
-            modifyBitShort(stuffed+stuffed_index, stuffed_bit, new_val) ;
-            stuffed_bit = (stuffed_bit<15)?(stuffed_bit+1):0 ;
-            stuffed_index = (stuffed_bit==0)?(stuffed_index+1):stuffed_index ;
-
-            modifyBitShort(stuffed+stuffed_index, stuffed_bit, !new_val) ;
-            stuffed_bit = (stuffed_bit<15)?(stuffed_bit+1):0 ;
-            stuffed_index = (stuffed_bit==0)?(stuffed_index+1):stuffed_index ;
-            unstuffed_bit = (unstuffed_bit<15)?(unstuffed_bit+1):0 ;
-            unstuffed_index = (unstuffed_bit==0)?(unstuffed_index+1):unstuffed_index ;
-
-            bit_run_len = 1 ;
-            old_val = !new_val ;
-        }
-    }
-    // Pack out rest of that index with zeroes
-    while(stuffed_bit <= 15) {
-        modifyBitShort(stuffed+stuffed_index, stuffed_bit, 0) ;
-        stuffed_bit += 1 ;
-    }
-
-    // Postpend a short of all ones
-    stuffed_index += 1 ;
-    *(stuffed + stuffed_index) = *(unstuffed + unstuffed_index) ;
-}
-
 unsigned char get_bit(unsigned char* data, size_t bit_index) {
     size_t byte_index = bit_index / 8;
     size_t bit_offset = bit_index % 8;
     return (data[byte_index] >> (7 - bit_offset)) & 0x1;
+}
+
+uint32_t get_bits(unsigned char* data, size_t bit_index, size_t bit_len) {
+    assert(bit_len <= 32);
+    uint32_t value = 0;
+    for (size_t i = 0; i < bit_len; i++) {
+        value <<= 1;
+        value |= get_bit(data, bit_index + i);
+    }
+    return value;
 }
 
 void put_bit(unsigned char* data, size_t bit_index, unsigned char value) {
@@ -237,16 +91,6 @@ void put_bits(unsigned char* data, size_t bit_index, uint32_t value, size_t bit_
     for (size_t i = 0; i < bit_len; i++) {
         put_bit(data, bit_index + i, (value >> (bit_len - 1 - i)) & 0x1);
     }
-}
-
-uint32_t get_bits(unsigned char* data, size_t bit_index, size_t bit_len) {
-    assert(bit_len <= 32);
-    uint32_t value = 0;
-    for (size_t i = 0; i < bit_len; i++) {
-        value <<= 1;
-        value |= get_bit(data, bit_index + i);
-    }
-    return value;
 }
 
 void print_bits(unsigned char* data, size_t bit_len, unsigned char* buffer_description) {
@@ -269,38 +113,7 @@ void print_bits(unsigned char* data, size_t bit_len, unsigned char* buffer_descr
     }
 }
 
-size_t my_bit_stuff(unsigned char* stuffed, unsigned char* unstuffed, size_t bit_len, size_t unstuffed_len) {
-
-    //print_bits(unstuffed, bit_len, "Unstuffed");
-
-    size_t stuffed_bit_len = 0;
-    unsigned char prev_bit = 0;
-    size_t bit_run = 1;
-    for (int i = 0; i < bit_len; i++) {
-        unsigned char next_bit = get_bit(unstuffed, i);
-        if (next_bit == prev_bit) {
-            bit_run++;
-        } else {
-            bit_run = 1;
-        }
-        //printf("TX: (%i) bit run = %zu\n", i, bit_run);
-
-        put_bit(stuffed, stuffed_bit_len, next_bit);
-        stuffed_bit_len++;
-
-        if (bit_run == 5) {
-            //printf("TX: stuff a bit\n");
-            bit_run = 0;
-            put_bit(stuffed, stuffed_bit_len, !next_bit); // Stuff the opposite bit
-            stuffed_bit_len++;
-        }
-        prev_bit = next_bit;
-    }
-    //print_bits(stuffed, stuffed_bit_len, "Stuffed");
-    return stuffed_bit_len;
-}
-
-size_t my_bit_unstuff(unsigned char* unstuffed, unsigned char* stuffed, size_t stuffed_bit_len) {
+size_t unstuff_frame(unsigned char* unstuffed, unsigned char* stuffed, size_t stuffed_bit_len) {
 
     size_t unstuffed_bit_len = 0;
     size_t unstuffed_target = stuffed_bit_len;
@@ -308,9 +121,12 @@ size_t my_bit_unstuff(unsigned char* unstuffed, unsigned char* stuffed, size_t s
     size_t bit_run = 1;
     size_t stuffed_cursor = 0;
     size_t stuffing_removed = 0;
+    uint8_t received_dlc = 0;
 
     while (stuffed_cursor < unstuffed_target) {
         unsigned char next_bit = get_bit(stuffed, stuffed_cursor);
+        put_bit(unstuffed, unstuffed_bit_len, next_bit);
+        unstuffed_bit_len++;
 
         if (next_bit == prev_bit) {
             bit_run++;
@@ -321,38 +137,41 @@ size_t my_bit_unstuff(unsigned char* unstuffed, unsigned char* stuffed, size_t s
         if (bit_run == 5) {
             // Skip the stuffed bit
             if (get_bit(stuffed, stuffed_cursor+1) == next_bit) {
+                // todo: signal an error or handle unexpected bit stuffing
                 printf("RX: Unexpected bit stuffing at bit %zu\n", stuffed_cursor+1);
             }
             stuffed_cursor++;
             stuffing_removed++;
             bit_run = 0;
         }
-        put_bit(unstuffed, unstuffed_bit_len, next_bit);
-        unstuffed_bit_len++;
+
+        if (unstuffed_bit_len == 15) {
+            received_dlc |= (next_bit << 3);
+        }
+        if (unstuffed_bit_len == 16) {
+            received_dlc |= (next_bit << 2);
+        }
+        if (unstuffed_bit_len == 17) {
+            received_dlc |= (next_bit << 1);
+        }
+        if (unstuffed_bit_len == 18) {
+            received_dlc |= next_bit;
+        }
 
         if (unstuffed_bit_len == 18) {
-            unsigned char dlc_value = get_bit(unstuffed, 17);
-            dlc_value |= get_bit(unstuffed, 16) << 1;
-            dlc_value |= get_bit(unstuffed, 15) << 2;
-            dlc_value |= get_bit(unstuffed, 14) << 3;
-
-            unsigned char dlc_check = get_bits(unstuffed, 14, 4);
-            assert(dlc_value == dlc_check);
-
-            printf("RX unstuff: DLC value: %d\n", dlc_value);
-            size_t unstuffed_frame_len = 18 + dlc_value * 8 + 15;
+            printf("RX: Received DLC: %d\n", received_dlc);
+            size_t unstuffed_frame_len = 18 + received_dlc * 8 + 15;
 
             unstuffed_target = unstuffed_frame_len;
-
         }
 
         prev_bit = next_bit;
         stuffed_cursor++;
     }
 
-    printf("RX: Total stuffed bits removed: %zu\n", stuffing_removed);
     assert(unstuffed_bit_len == stuffed_cursor - stuffing_removed);
 
+    // it seems the pio buffer doesn't have sensible values for most of this
     uint8_t crc_delim = get_bits(stuffed, stuffed_cursor, 1);
     stuffed_cursor += 1;
     put_bits(unstuffed, unstuffed_bit_len, crc_delim, 1);
@@ -368,11 +187,6 @@ size_t my_bit_unstuff(unsigned char* unstuffed, unsigned char* stuffed, size_t s
     put_bits(unstuffed, unstuffed_bit_len, eof_bits, 7);
     unstuffed_bit_len += 7;
 
-    return unstuffed_bit_len;
-}
-
-size_t unstuff_frame(unsigned char* unstuffed, unsigned char* stuffed, size_t stuffed_bit_len) {
-    size_t unstuffed_bit_len = my_bit_unstuff(unstuffed, stuffed, stuffed_bit_len);
     return unstuffed_bit_len;
 }
 
