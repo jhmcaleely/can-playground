@@ -17,9 +17,6 @@
 // Clock settings
 #define SYSTEM_CLOCK_RATE  128000
 #define CLKDIV          32
-// Checksum polynomial and initial value
-#define CRC16_POLY              0x8005
-#define CRC_INIT                0xFFFF
 
 
 //          OTHER BUFFERS FOR STORING STUFFED/UNSTUFFED PACKETS FOR TX/RX
@@ -60,23 +57,6 @@ int dma_chan_4  = 4 ;
 // Dummy DMA source/destination for chained channel
 unsigned int dummy_source = 0 ;
 unsigned int dummy_dest   = 0 ;
-
-
-//               FUNCTION WHICH COMPUTES CHECKSUM (TX & RX)
-//
-// Function which computes the checksum over a series of bytes
-unsigned short culCalcCRC(char crcData, unsigned short crcReg) {
-    int i;
-    for (i = 0; i < 8; i++) {
-        if (((crcReg & 0x8000) >> 8) ^ (crcData & 0x80)) {
-            crcReg = (crcReg << 1) ^ CRC16_POLY;
-        } else {
-          crcReg = (crcReg << 1);
-        }
-        crcData <<= 1;
-    }
-    return crcReg;
-}
 
 
 //                 FUNCTIONS USED FOR PACKET TRANSMISSION
@@ -253,24 +233,40 @@ void put_bit(unsigned char* data, size_t bit_index, unsigned char value) {
     }
 }
 
+void put_bits(unsigned char* data, size_t bit_index, uint32_t value, size_t bit_len) {
+    for (size_t i = 0; i < bit_len; i++) {
+        put_bit(data, bit_index + i, (value >> (bit_len - 1 - i)) & 0x1);
+    }
+}
+
+uint32_t get_bits(unsigned char* data, size_t bit_index, size_t bit_len) {
+    assert(bit_len <= 32);
+    uint32_t value = 0;
+    for (size_t i = 0; i < bit_len; i++) {
+        value <<= 1;
+        value |= get_bit(data, bit_index + i);
+    }
+    return value;
+}
+
 void print_bits(unsigned char* data, size_t bit_len, unsigned char* buffer_description) {
     size_t whole_bytes = bit_len / 8;
     size_t remaining_bits = bit_len % 8;
     printf("TX: %s bit length: %zu\n", buffer_description, bit_len);
     for (int i = 0; i < whole_bytes; i++) {
-        printf("TX: %s byte %d: %02x\n", buffer_description, i, data[i]);
-        printf("TX: %s byte %d bits: ", buffer_description, i);
+        printf("TX: %s byte %2d: %02x  bits (%3d, %3d): ", buffer_description, i, data[i], i * 8, i * 8 + 7);
         for (int j = 0; j < 8; j++) {
             printf("%d", get_bit(data, i * 8 + j));
         }
         printf("\n");
     }
-    printf("TX: %s byte %d: %02x (bits %d)\n", buffer_description, whole_bytes, data[whole_bytes], remaining_bits);
-    printf("TX: %s byte bits: ", buffer_description);
-    for (int i = 0; i < remaining_bits; i++) {
-        printf("%d", get_bit(data, whole_bytes * 8 + i));
+    if (remaining_bits > 0) {
+        printf("TX: %s byte %2d: %02x bits (%3d, %3d): ", buffer_description, whole_bytes, data[whole_bytes], whole_bytes * 8, whole_bytes * 8 + remaining_bits - 1);
+        for (int i = 0; i < remaining_bits; i++) {
+            printf("%d", get_bit(data, whole_bytes * 8 + i));
+        }
+        printf("\n");
     }
-    printf("\n");
 }
 
 size_t my_bit_stuff(unsigned char* stuffed, unsigned char* unstuffed, size_t bit_len, size_t unstuffed_len) {
@@ -306,41 +302,44 @@ size_t my_bit_stuff(unsigned char* stuffed, unsigned char* unstuffed, size_t bit
 
 size_t my_bit_unstuff(unsigned char* unstuffed, unsigned char* stuffed, size_t stuffed_bit_len) {
 
-    print_bits(stuffed, stuffed_bit_len, "RX: Stuffed");
-
     size_t unstuffed_bit_len = 0;
     size_t unstuffed_target = stuffed_bit_len;
     unsigned char prev_bit = 0;
     size_t bit_run = 1;
-    for (int i = 0; i < unstuffed_target; i++) {
-        unsigned char next_bit = get_bit(stuffed, i);
+    size_t stuffed_cursor = 0;
+    size_t stuffing_removed = 0;
+
+    while (stuffed_cursor < unstuffed_target) {
+        unsigned char next_bit = get_bit(stuffed, stuffed_cursor);
+
         if (next_bit == prev_bit) {
             bit_run++;
         } else {
             bit_run = 1;
         }
-        printf("RX: Bit %d: %d (bit run %zu)\n", i, next_bit, bit_run);
 
         if (bit_run == 5) {
             // Skip the stuffed bit
-            if (get_bit(stuffed, i+1) == next_bit) {
-                printf("RX: Unexpected bit stuffing at bit %d\n", i+1);
+            if (get_bit(stuffed, stuffed_cursor+1) == next_bit) {
+                printf("RX: Unexpected bit stuffing at bit %zu\n", stuffed_cursor+1);
             }
-            i++;
-            bit_run = 1;
-            printf("RX: Skipped stuffed bit at bit %d\n", i);
+            stuffed_cursor++;
+            stuffing_removed++;
+            bit_run = 0;
         }
         put_bit(unstuffed, unstuffed_bit_len, next_bit);
-        printf("RX: Unstuffed bit %zu: %d\n", unstuffed_bit_len, next_bit);
         unstuffed_bit_len++;
 
-        if (unstuffed_bit_len == 19) {
+        if (unstuffed_bit_len == 18) {
             unsigned char dlc_value = get_bit(unstuffed, 17);
             dlc_value |= get_bit(unstuffed, 16) << 1;
             dlc_value |= get_bit(unstuffed, 15) << 2;
             dlc_value |= get_bit(unstuffed, 14) << 3;
 
-            printf("RX: DLC value: %d\n", dlc_value);
+            unsigned char dlc_check = get_bits(unstuffed, 14, 4);
+            assert(dlc_value == dlc_check);
+
+            printf("RX unstuff: DLC value: %d\n", dlc_value);
             size_t unstuffed_frame_len = 18 + dlc_value * 8 + 15;
 
             unstuffed_target = unstuffed_frame_len;
@@ -348,8 +347,58 @@ size_t my_bit_unstuff(unsigned char* unstuffed, unsigned char* stuffed, size_t s
         }
 
         prev_bit = next_bit;
+        stuffed_cursor++;
     }
+
+    printf("RX: Total stuffed bits removed: %zu\n", stuffing_removed);
+    assert(unstuffed_bit_len == stuffed_cursor - stuffing_removed);
+
+    uint8_t crc_delim = get_bits(stuffed, stuffed_cursor, 1);
+    stuffed_cursor += 1;
+    put_bits(unstuffed, unstuffed_bit_len, crc_delim, 1);
+    unstuffed_bit_len += 1;
+
+    uint8_t ack_bits = get_bits(stuffed, stuffed_cursor, 2);
+    stuffed_cursor += 2;
+    put_bits(unstuffed, unstuffed_bit_len, ack_bits, 2);
+    unstuffed_bit_len += 2;
+    
+    uint8_t eof_bits = get_bits(stuffed, stuffed_cursor, 7);
+    stuffed_cursor += 7;
+    put_bits(unstuffed, unstuffed_bit_len, eof_bits, 7);
+    unstuffed_bit_len += 7;
+
     return unstuffed_bit_len;
+}
+
+size_t unstuff_frame(unsigned char* unstuffed, unsigned char* stuffed, size_t stuffed_bit_len) {
+    size_t unstuffed_bit_len = my_bit_unstuff(unstuffed, stuffed, stuffed_bit_len);
+    return unstuffed_bit_len;
+}
+
+size_t stuff_frame(unsigned char* stuffed, unsigned char* unstuffed, size_t unstuffed_bit_len) {
+    size_t transmit_bits = 0;
+    uint8_t prev_bit = can_recessive_bit;
+    size_t bit_run = 1;
+
+    for (size_t i = 0; i < unstuffed_bit_len; i++) {
+        uint8_t next_bit = get_bit(unstuffed, i);
+        if (next_bit == prev_bit) {
+            bit_run++;
+        } else {
+            bit_run = 1;
+        }
+        put_bit(stuffed, transmit_bits, next_bit);
+        transmit_bits++;
+        if (bit_run == 5) {
+            // Insert a stuffed bit
+            put_bit(stuffed, transmit_bits, !next_bit);
+            transmit_bits++;
+            bit_run = 1;
+        }
+        prev_bit = next_bit;
+    }
+    return transmit_bits;
 }
 
 // Assemble the unstuffed packet for transmit using the global values for
@@ -420,39 +469,25 @@ void sendCBUSPacket() {
     tx_buffer_byte[can_dlc + 4] = (checksum_low & 0x03) << 6;
 
     unsigned char tx_stuffed[MAX_STUFFED_PACKET_LEN];
-    size_t stuffed_bits = my_bit_stuff(tx_stuffed, tx_buffer_byte, (can_dlc + 4) * 8 + 1, can_dlc + 4);
-    put_bit(tx_stuffed, stuffed_bits + 1, can_recessive_bit & 0x1); // crc_delim
+    size_t stuffed_bits = stuff_frame(tx_stuffed, tx_buffer_byte, (can_dlc + 4) * 8 + 1);
+
+    put_bit(tx_stuffed, stuffed_bits++, can_recessive_bit & 0x1); // crc_delim
 
     // ack
-    put_bit(tx_stuffed, stuffed_bits + 2, can_dominant_bit & 0x1);
-    put_bit(tx_stuffed, stuffed_bits + 3, can_recessive_bit & 0x1);
+    put_bit(tx_stuffed, stuffed_bits++, can_dominant_bit & 0x1);
+    put_bit(tx_stuffed, stuffed_bits++, can_recessive_bit & 0x1);
 
     // eof
-    put_bit(tx_stuffed, stuffed_bits + 4, can_recessive_bit & 0x1);
-    put_bit(tx_stuffed, stuffed_bits + 5, can_recessive_bit & 0x1);
-    put_bit(tx_stuffed, stuffed_bits + 6, can_recessive_bit & 0x1);
-    put_bit(tx_stuffed, stuffed_bits + 7, can_recessive_bit & 0x1);
-    put_bit(tx_stuffed, stuffed_bits + 8, can_recessive_bit & 0x1);
-    put_bit(tx_stuffed, stuffed_bits + 9, can_recessive_bit & 0x1);
-    put_bit(tx_stuffed, stuffed_bits + 10, can_recessive_bit & 0x1);
+    put_bit(tx_stuffed, stuffed_bits++, can_recessive_bit & 0x1);
+    put_bit(tx_stuffed, stuffed_bits++, can_recessive_bit & 0x1);
+    put_bit(tx_stuffed, stuffed_bits++, can_recessive_bit & 0x1);
+    put_bit(tx_stuffed, stuffed_bits++, can_recessive_bit & 0x1);
+    put_bit(tx_stuffed, stuffed_bits++, can_recessive_bit & 0x1);
+    put_bit(tx_stuffed, stuffed_bits++, can_recessive_bit & 0x1);
+    put_bit(tx_stuffed, stuffed_bits++, can_recessive_bit & 0x1);
 
 //    print_bits(tx_stuffed, stuffed_bits + 10, "stuffed frame");
-
-
-    unsigned char ack = can_recessive_bit & 0x1 << 1;
-    ack |= can_recessive_bit & 0x1;
-
-    // ACK
-    tx_buffer_byte[can_dlc + 4] |= ack << 4;
-
-    // End of packet marker
-    tx_buffer_byte[can_dlc + 4] |= 0xF; // End of packet marker
-    tx_buffer_byte[can_dlc + 5] = 0xe0;
-    tx_buffer_byte[can_dlc + 5] = 0xFF; // our internal marker
-    tx_buffer_byte[can_dlc + 6] = 0xff;
-    tx_buffer_byte[can_dlc + 7] = 0xff;
-
-    unsigned int bytes_loaded = (stuffed_bits + 10) / 8 + 1;
+    unsigned int bytes_loaded = (stuffed_bits) / 8 + 1;
 
 
     // Print the populated packet
@@ -461,84 +496,6 @@ void sendCBUSPacket() {
          printf("%02x", tx_stuffed[i]) ;
     }
     printf("\n") ;
-
-
-    printf("TX: stuffed packet: ") ;
-    unsigned int cursor = 0;
-    for (i = 0; i < bytes_loaded; i += 2) {
-        unsigned short tx_blob = tx_stuffed[i];
-        tx_blob <<= 8;
-        tx_blob |= tx_stuffed[i+1];
-        tx_packet_stuffed[cursor] = tx_blob;
-        printf("%04x", tx_packet_stuffed[cursor]);
-        cursor++;
-    }
-    printf("\n") ;
-
-    // Bit stuff the packet
-   // bitStuff(tx_packet_unstuffed, tx_packet_stuffed) ;
-
-    // Print packet after stuffing
-    //printf("TX Stuffed packet:\n") ;
-    //for (i=0; i<((payload_len>>1)+6); i++){
-    //    printf("%04x", tx_packet_stuffed[i]) ;
-    //}
-    //printf("\n") ;
-
-    printf("TX: stuffed bytes:\n");
-    for (i = 0; i < bytes_loaded; i++) {
-        printf("%02x", tx_stuffed[i]) ;
-    }
-    printf("\n") ;
-    // BEGIN TRANSMISSION
-    dma_start_channel_mask((1u << dma_chan_0)) ;
-}
-
-
-// Assemble the unstuffed packet for transmit using the global values for
-// arbitration, reserve byte, payload length, and the payload. This function
-// automatically computes and appends the checksum, then appends the EOF.
-void sendPacket() {
-    // Incrementer
-    int i ;
-    // Load arbitration
-    tx_packet_unstuffed[0] = arbitration ;
-    // Load reserve byte and payload length
-    tx_packet_unstuffed[1] =  (((((unsigned short)reserve_byte)<<8) & 0xFF00) |
-                             (((unsigned short)payload_len) & 0x00FF));
-    // Load payload
-    memcpy(&tx_packet_unstuffed[2], &payload[0], payload_len) ;
-    // Compute checksum
-    unsigned short checksum = CRC_INIT; // Init value for CRC calculation
-    while (checksum == 0xFFFF) {
-        tx_packet_unstuffed[1] ^= 0x8000 ;
-        for (i = 0; i < ((payload_len>>1)+2); i++) {
-          checksum = culCalcCRC((tx_packet_unstuffed[i]>>8)&0xFF, checksum);
-          checksum = culCalcCRC((tx_packet_unstuffed[i])&0xFF, checksum);
-        }
-    }
-
-    // Load checksum
-    tx_packet_unstuffed[i] = checksum ;
-    // Load EOF
-    tx_packet_unstuffed[i+1] = 0xFFFF ;
-
-    // // Print the populated packet
-    // printf("\nPopulated packet\n") ;
-    // for(i=0; i<((payload_len>>1)+6); i++){
-    //     printf("%04x", tx_packet_unstuffed[i]) ;
-    // }
-    // printf("\n") ;
-
-    // Bit stuff the packet
-    bitStuff(tx_packet_unstuffed, tx_packet_stuffed) ;
-
-    // // Print packet after stuffing
-    // printf("Stuffed packet:\n") ;
-    // for (i=0; i<((payload_len>>1)+6); i++){
-    //     printf("%04x", tx_packet_stuffed[i]) ;
-    // }
-    // printf("\n") ;
 
     // BEGIN TRANSMISSION
     dma_start_channel_mask((1u << dma_chan_0)) ;
@@ -700,6 +657,20 @@ uint16_t can_crc15_next(uint16_t crc, uint8_t data, int len) {
     return crc;
 }
 
+const size_t can_identifier_bits = 11; // Standard CAN identifier size in bits
+const size_t can_arbitration_bits = can_identifier_bits + 1; // Standard CAN arbitration field size in bits (identifier + RTR bit)
+const size_t can_dlc_bits = 4; // Standard CAN DLC field size in bits
+const size_t can_control_field_bits = 2 + can_dlc_bits;
+const size_t can_data_frame_header_bits = 1 + can_arbitration_bits + can_control_field_bits; // can data frame header size in bits
+const size_t can_data_frame_crc_bits = 15; // CRC size in bits
+const size_t can_data_frame_trailer_bits = 10; // CRC delimiter, ACK slot, ACK delimiter, and end of frame size in bits
+const size_t can_max_data_field_bits = 8 * 8;
+const size_t can_max_frame_bits = can_data_frame_header_bits + can_max_data_field_bits + can_data_frame_crc_bits + can_data_frame_trailer_bits;
+const size_t can_max_frame_buffer_bytes = (can_max_frame_bits + 7) / 8;
+const size_t can_max_stuff_bits = (can_data_frame_header_bits + can_max_data_field_bits + can_data_frame_crc_bits) / 5;
+const size_t can_max_transmission_bits = can_max_stuff_bits + can_max_frame_bits;
+const size_t can_max_transmission_buffer_bytes = (can_max_transmission_bits + 7) / 8;
+
 // Function assumes that a stuffed packet lives in rx_packet_stuffed.
 // It unpacks that packet, checks the arbitration bits, and checks the
 // checksum. If it is a valid packet (correct arbitration and checksum)
@@ -715,30 +686,31 @@ unsigned char attemptPacketReceive() {
     // printf("\n") ;
 
     // Unstuff the received packet
-    unBitStuff(rx_packet_stuffed, rx_packet_unstuffed) ;
 
-    my_bit_unstuff(rx_packet_unstuffed, rx_packet_stuffed, 18+15);
+    print_bits(rx_packet_stuffed, 22*8, "RX: Stuffed packet: ");
+
+
+    size_t unstuffed_bit_len = unstuff_frame(rx_packet_unstuffed, rx_packet_stuffed, 22*8);
 
     // Print the packet after unstuffing
-    printf("RX: Packet after unstuffing: ") ;
-    for (i=0; i<22; i++){
-        printf("%02x", rx_packet_unstuffed[i]) ;
-    }
-    printf("\n") ;
+    print_bits(rx_packet_unstuffed, unstuffed_bit_len, "RX: Unstuffed packet: ");
 
     // print MERG CAN/CBUS decode
     uint16_t can_arbitration = rx_packet_unstuffed[0] << 8 | rx_packet_unstuffed[1];
     can_arbitration >>= 4;
     printf("RX: Decoded CAN arbitration: 0x%03x\n", can_arbitration);
 
-    uint16_t can_identifier = can_arbitration >> 1;
-    uint8_t can_rtr = can_arbitration & 0x1;
+    uint16_t can_arbitration2 = get_bits(rx_packet_unstuffed, 0, 12);
+    printf("RX: Decoded CAN arbitration (method 2): 0x%03x\n", can_arbitration2);
+
+    uint16_t can_identifier = get_bits(rx_packet_unstuffed, 0, 11);
+    uint8_t can_rtr = get_bits(rx_packet_unstuffed, 11, 1);
 
     printf("RX: Decoded CAN identifier: 0x%03x\n", can_identifier);
     printf("RX: Decoded CAN RTR: %d\n", can_rtr);
 
-    uint8_t can_control_r1 = (rx_packet_unstuffed[1] & 0x20) >> 5;
-    uint8_t can_control_r0 = (rx_packet_unstuffed[1] & 0x10) >> 4;
+    uint8_t can_control_r1 = get_bits(rx_packet_unstuffed, 12, 1);
+    uint8_t can_control_r0 = get_bits(rx_packet_unstuffed, 13, 1);
     if (can_control_r1 != can_dominant_bit || can_control_r0 != can_dominant_bit) {
         printf("RX: Unexpected CAN Control bits! (R1: %d, R0: %d)\n", can_control_r1, can_control_r0);
         return 0;
@@ -746,26 +718,37 @@ unsigned char attemptPacketReceive() {
 
     uint8_t dlcHn = rx_packet_unstuffed[1] & 0x03;
     uint8_t dlcLn = (rx_packet_unstuffed[2] & 0xC0) >> 6;
-    uint8_t dlc = (dlcHn << 2) | dlcLn;
+    uint8_t dlc = get_bits(rx_packet_unstuffed, 14, 4);
     printf("RX: Decoded CAN Control DLC: %d\n", dlc);
 
-    uint8_t can_data_n_crcfield[10];
-    for (i = 0; i < dlc + 2; i++) {
-        can_data_n_crcfield[i] = (rx_packet_unstuffed[i+2] & 0x3F) << 2;
-        can_data_n_crcfield[i] |= (rx_packet_unstuffed[i+3] & 0xC0) >> 6;
+    unsigned char can_data_field[8];
+    uint8_t can_data_len = dlc;
+    for (i = 0; i < can_data_len; i++) {
+        can_data_field[i] = get_bits(rx_packet_unstuffed, 18 + i*8, 8);
+        printf("RX: CAN Data byte %d: 0x%02x\n", i, can_data_field[i]);
     }
 
-    uint8_t crchi = can_data_n_crcfield[i-2];
-    uint8_t crclo = can_data_n_crcfield[i-1];
-    uint16_t crc = (crchi << 8) | crclo;
-    uint8_t crc_delim = crc & 0x1;
-    if (crc_delim != can_recessive_bit) {
-        printf("RX: Unexpected CRC delimiter bit!\n");
+    uint16_t can_crc = get_bits(rx_packet_unstuffed, 18 + can_data_len*8, 15);
+    printf("RX: Decoded CAN CRC: 0x%04x\n", can_crc);
+    uint8_t can_crc_delim = get_bits(rx_packet_unstuffed, 18 + can_data_len*8 + 15, 1);
+    if (can_crc_delim != can_recessive_bit) {
+        printf("RX: Unexpected CAN CRC delimiter bit!\n");
         return 0;
     }
 
-    crc  = crc >> 1;
-    printf("RX: Received checksum: %04x\n", crc);
+    uint8_t ack_slot = get_bits(rx_packet_unstuffed, 18 + can_data_len*8 + 15 + 1, 1);
+    printf("RX: Decoded CAN ACK slot: %d\n", ack_slot);
+    uint8_t ack_delim = get_bits(rx_packet_unstuffed, 18 + can_data_len*8 + 15 + 1 + 1, 1);
+    if (ack_delim != can_recessive_bit) {
+        printf("RX: Unexpected CAN ACK delimiter bit!\n");
+    }
+
+    uint8_t eof = get_bits(rx_packet_unstuffed, 18 + can_data_len*8 + 15 + 1 + 1 + 1, 7);
+    if (eof != 0x7F) {
+        printf("RX: Unexpected CAN EOF bits!\n");
+    }
+
+    printf("RX: Received checksum: %04x\n", can_crc);
 
     uint16_t checsum = 0;
     checsum = can_crc15_next(checsum, 0, 1);
@@ -775,19 +758,9 @@ unsigned char attemptPacketReceive() {
     checsum = can_crc15_next(checsum, rx_packet_unstuffed[i], 2);
     printf("RX: Computed checksum: %04x\n", checsum);
 
-    if (checsum != crc) {
+    if (checsum != can_crc) {
         printf("RX: Checksum mismatch!\n");
         return 0;
-    }
-    
-    uint8_t* can_data_field = NULL;
-    if (dlc > 0) {
-        can_data_field = &can_data_n_crcfield[0];
-        printf("RX: CAN Data field: ");
-        for (i = 0; i < dlc; i++) {
-            printf("%02x ", can_data_field[i]);
-        }
-        printf("\n");
     }
 
     // MERG CAN ID for CBUS
