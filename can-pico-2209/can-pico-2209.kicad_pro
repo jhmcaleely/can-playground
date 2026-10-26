@@ -39,9 +39,9 @@
         "other_text_thickness": 0.15,
         "other_text_upright": false,
         "pads": {
-          "drill": 0.8,
-          "height": 1.27,
-          "width": 2.54
+          "drill": 3.2,
+          "height": 3.2,
+          "width": 3.2
         },
         "silk_line_width": 0.1,
         "silk_text_italic": false,
@@ -467,7 +467,7 @@
       "no_connect_dangling": "warning",
       "pin_not_connected": "error",
       "pin_not_driven": "error",
-      "pin_to_pin": "warning",
+      "pin_to_pin": "error",
       "power_pin_not_driven": "error",
       "same_local_global_label": "warning",
       "similar_label_and_power": "warning",
@@ -685,13 +685,13 @@
         "uuid": "b29cfdaf-3d70-4d14-801e-4efcd15231d8"
       }
     ],
-    "used_designators": "",
+    "used_designators": "#PWR8",
     "variants": []
   },
   "sheets": [
     [
       "b29cfdaf-3d70-4d14-801e-4efcd15231d8",
-      "12v-pico"
+      "can-pico-2209"
     ]
   ],
   "text_variables": {},
