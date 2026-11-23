@@ -21,6 +21,7 @@
 // Protothreads
 #include "pt_cornell_rp2040_v1_4.h"
 
+#include "stepper.h"
 
 //                                   USER GLOBALS
 //
@@ -161,6 +162,10 @@ int main() {
 
     // Print greeting
     printf("System starting up\n\n") ;
+
+    init_stepper() ;
+    assert_stepper_api() ;
+    disable_motor() ;
 
     // Initialize LED
     gpio_init(LED_PIN) ;

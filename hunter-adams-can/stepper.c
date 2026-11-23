@@ -3,8 +3,6 @@
 #include <pico/stdlib.h>
 
 #include "stepper.h"
-#include <steps.pio.h>
-#include <pulse_length.pio.h>
 
 #include <hardware/gpio.h>
 #include <hardware/pio.h>
@@ -49,46 +47,14 @@ void stepper_step_irq_handler() {
     pio_interrupt_clear(pio0, 0);
 }
 
-void init_steps_pio() {
-    PIO pio = pio0;
-    uint sm = pio_claim_unused_sm(pio, true);
-    program_offset = pio_add_program(pio, &steps_program);
-    pio_sm_config c = steps_program_get_default_config(program_offset);
-
-
-    sm_config_set_set_pins(&c, step, 1);
-    sm_config_set_sideset_pins(&c, 0);
-    pio_sm_set_consecutive_pindirs(pio, sm, step, 1, true);
-    sm_config_set_clkdiv_int_frac(&c, 5000, 0);
-    sm_config_set_out_special(&c, true, false, false);
-
-    irq_add_shared_handler(pio_get_irq_num(pio, 0), stepper_step_irq_handler, PICO_SHARED_IRQ_HANDLER_DEFAULT_ORDER_PRIORITY);
-    pio_set_irqn_source_enabled(pio, 0, pis_interrupt0, true);
-    irq_set_enabled(pio_get_irq_num(pio, 0), true);
-
-    pio_sm_init(pio, sm, program_offset, &c);
-    pio_gpio_init(pio, step);
-    pio_sm_set_enabled(pio, sm, true);
-}
-
-void init_pulse_length_pio() {
-    PIO pio = pio0;
-    uint sm = pio_claim_unused_sm(pio, true);
-    program_offset = pio_add_program(pio, &pulse_length_program);
-    pio_sm_config c = pulse_length_program_get_default_config(program_offset);
-    sm_config_set_clkdiv_int_frac(&c, 5000, 0);
-    pio_sm_init(pio, sm, program_offset, &c);
-    pio_sm_set_enabled(pio, sm, true);
-}
-
 void init_stepper() {
     gpio_init(direction);
     gpio_set_dir(direction, GPIO_OUT);
     gpio_put(direction, true);
 
-//    gpio_init(step);
-//    gpio_set_dir(step, GPIO_OUT);
-//    gpio_put(step, false);
+    gpio_init(step);
+    gpio_set_dir(step, GPIO_OUT);
+    gpio_put(step, false);
 
     gpio_init(idx);
     gpio_set_dir(idx, GPIO_IN);
@@ -107,9 +73,6 @@ void init_stepper() {
     gpio_init(ms2);
     gpio_set_dir(ms2, GPIO_OUT);
     gpio_put(ms2, false);
-
-    init_steps_pio();
-    init_pulse_length_pio();
 
     init_uart_hw();
 }

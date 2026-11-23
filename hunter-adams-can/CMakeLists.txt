@@ -30,7 +30,10 @@ add_executable(CAN_Bus)
 
 pico_generate_pio_header(CAN_Bus ${CMAKE_CURRENT_LIST_DIR}/can.pio)
 
-target_sources(CAN_Bus PRIVATE can_demo.c)
+target_sources(CAN_Bus PRIVATE 
+    can_demo.c 
+    stepper.c 
+    stepper.h)
 
 target_link_libraries(CAN_Bus PRIVATE pico_stdlib pico_multicore pico_bootsel_via_double_reset hardware_pio hardware_dma hardware_watchdog)
 
