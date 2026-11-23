@@ -1,0 +1,9 @@
+.program pulse_length
+
+set x, 31
+
+countloop:
+    jmp x-- countloop
+
+wait 1 irq 2
+irq 3
