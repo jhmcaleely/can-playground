@@ -7024,16 +7024,6 @@
 			(uuid "8f62ea40-7b95-4abe-ba53-edd7ec676bf0")
 		)
 		(fp_line
-			(start -1.269801 -1.195)
-			(end -0.869801 -1.195)
-			(stroke
-				(width 0.12)
-				(type solid)
-			)
-			(layer "F.SilkS")
-			(uuid "6930a7ea-4d28-4487-b2b7-e7816b4a7f56")
-		)
-		(fp_line
 			(start 2.72 -1.199)
 			(end 2.72 -0.84)
 			(stroke
@@ -7074,16 +7064,6 @@
 			(uuid "76a122ac-f4de-4980-80fc-2b722199e420")
 		)
 		(fp_line
-			(start -1.069801 -1.395)
-			(end -1.069801 -0.995)
-			(stroke
-				(width 0.12)
-				(type solid)
-			)
-			(layer "F.SilkS")
-			(uuid "89287581-cd25-4226-8850-14cd3d2fd199")
-		)
-		(fp_line
 			(start 2.56 -1.396)
 			(end 2.56 -0.84)
 			(stroke
@@ -7122,6 +7102,16 @@
 			)
 			(layer "F.SilkS")
 			(uuid "dea4bb52-c207-4609-bff3-e7e76fe86d86")
+		)
+		(fp_line
+			(start -1.598801 -1.524)
+			(end -1.198801 -1.524)
+			(stroke
+				(width 0.12)
+				(type solid)
+			)
+			(layer "F.SilkS")
+			(uuid "6930a7ea-4d28-4487-b2b7-e7816b4a7f56")
 		)
 		(fp_line
 			(start 2.4 -1.552)
@@ -7182,6 +7172,16 @@
 			)
 			(layer "F.SilkS")
 			(uuid "0f37173d-e606-4b42-ba39-00945a04e926")
+		)
+		(fp_line
+			(start -1.398801 -1.724)
+			(end -1.398801 -1.324)
+			(stroke
+				(width 0.12)
+				(type solid)
+			)
+			(layer "F.SilkS")
+			(uuid "89287581-cd25-4226-8850-14cd3d2fd199")
 		)
 		(fp_line
 			(start 2.16 -1.734)
@@ -7920,8 +7920,8 @@
 		(attr through_hole)
 		(duplicate_pad_numbers_are_jumpers no)
 		(fp_line
-			(start -1.062288 -1.56)
-			(end -1.062288 -1.11)
+			(start -1.397 -1.894712)
+			(end -1.397 -1.444712)
 			(stroke
 				(width 0.12)
 				(type solid)
@@ -7930,8 +7930,8 @@
 			(uuid "64aafd20-268a-4807-aeec-c69d919cf5d1")
 		)
 		(fp_line
-			(start -1.287288 -1.335)
-			(end -0.837288 -1.335)
+			(start -1.622 -1.669712)
+			(end -1.172 -1.669712)
 			(stroke
 				(width 0.12)
 				(type solid)
@@ -8175,7 +8175,7 @@
 		)
 		(property "Value" "12v CBUS"
 			(at 13.8 0.762 270)
-			(layer "F.Fab")
+			(layer "F.SilkS")
 			(uuid "e756cddd-ee65-4e55-aaa1-01f7dc97f089")
 			(effects
 				(font
